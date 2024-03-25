@@ -4,8 +4,8 @@ pub trait Editable {
     type Key;
     fn add(&mut self, new: &Self::Element) -> Self::Key;
     fn delete(&mut self, key: &Self::Key) -> Option<Self::Element>;
-    fn edit(&mut self, key: &Self::Key, edit: Self::Element) -> Option<Self::Element>;
-    fn insert(&mut self, key: &Self::Key, insert: Self::Element);
+    fn edit(&mut self, key: &Self::Key, edit: &Self::Element) -> Option<Self::Element>;
+    fn insert(&mut self, key: &Self::Key, insert: &Self::Element);
 }
 
 #[derive(Clone, Debug)]
@@ -26,19 +26,19 @@ impl Editable for Numbers {
             Some(el)
         }
     }
-    fn edit(&mut self, key: &Self::Key, edit: Self::Element) -> Option<Self::Element> {
+    fn edit(&mut self, key: &Self::Key, edit: &Self::Element) -> Option<Self::Element> {
         if let Some(el) = self.0.get_mut(*key) {
             let output = *el;
-            *el = edit;
+            *el = edit.clone();
             Some(output)
         } else {
             None
         }
     }
-    fn insert(&mut self, key: &Self::Key, insert: Self::Element) {
+    fn insert(&mut self, key: &Self::Key, insert: &Self::Element) {
         if *key >= self.0.len() {
         } else {
-            self.0.insert(*key, insert);
+            self.0.insert(*key, *insert);
         }
     }
 }
@@ -61,19 +61,19 @@ impl Editable for Strings {
             Some(el)
         }
     }
-    fn edit(&mut self, key: &Self::Key, edit: Self::Element) -> Option<Self::Element> {
+    fn edit(&mut self, key: &Self::Key, edit: &Self::Element) -> Option<Self::Element> {
         if let Some(el) = self.0.get_mut(*key) {
             let output = el.clone();
-            *el = edit;
+            *el = edit.clone();
             Some(output)
         } else {
             None
         }
     }
-    fn insert(&mut self, key: &Self::Key, insert: Self::Element) {
+    fn insert(&mut self, key: &Self::Key, insert: &Self::Element) {
         if *key >= self.0.len() {
         } else {
-            self.0.insert(*key, insert);
+            self.0.insert(*key, insert.clone());
         }
     }
 }
@@ -81,6 +81,7 @@ impl Editable for Strings {
 pub enum Action<T: Editable + Clone> {
     Delete(Delete<T>),
     Add(Add<T>),
+    Edit(EditAct<T>),
 }
 
 impl<T: Editable + Clone> Edit for Action<T> {
@@ -97,6 +98,11 @@ impl<T: Editable + Clone> Edit for Action<T> {
                 let key = target.add(&add.el);
                 add.key = Some(key);
             }
+            Action::Edit(ed) => {
+                if let Some(t) = target.edit(&ed.key, &ed.new) {
+                    ed.prev = Some(t);
+                }
+            }
         }
     }
 
@@ -105,7 +111,7 @@ impl<T: Editable + Clone> Edit for Action<T> {
             Action::Delete(del) => match &del.result {
                 None => {}
                 Some(el) => {
-                    target.insert(&del.key, el.clone());
+                    target.insert(&del.key, &el);
                     del.result = None;
                 }
             },
@@ -114,6 +120,12 @@ impl<T: Editable + Clone> Edit for Action<T> {
                     target.delete(key);
                 }
                 add.key = None;
+            }
+            Action::Edit(ed) => {
+                if let Some(t) = &ed.prev {
+                    target.edit(&ed.key, t).unwrap();
+                    ed.prev = None;
+                }
             }
         }
     }
@@ -126,6 +138,12 @@ pub struct Delete<T: Editable + Clone> {
 pub struct Add<T: Editable + Clone> {
     pub el: T::Element,
     pub key: Option<T::Key>,
+}
+
+pub struct EditAct<T: Editable + Clone> {
+    pub new: T::Element,
+    pub key: T::Key,
+    pub prev: Option<T::Element>,
 }
 
 pub enum LocationAndAction {
@@ -199,7 +217,10 @@ fn main() {
     );
     assert_eq!(app.project.strs.0, vec!["b".to_owned(), "c".to_owned()]);
     app.record.undo(&mut app.project);
-    assert_eq!(app.project.strs.0, vec!["a".to_owned(), "b".to_owned(), "c".to_owned()]);
+    assert_eq!(
+        app.project.strs.0,
+        vec!["a".to_owned(), "b".to_owned(), "c".to_owned()]
+    );
     assert_eq!(app.project.nums.0, vec![2, 3]);
     app.record.undo(&mut app.project);
     assert_eq!(app.project.nums.0, vec![1, 2, 3]);
@@ -213,6 +234,18 @@ fn main() {
     );
     assert_eq!(app.project.nums.0, vec![1, 2, 3, 0]);
 
+    app.record.undo(&mut app.project);
+    assert_eq!(app.project.nums.0, vec![1, 2, 3]);
+
+    app.record.edit(
+        &mut app.project,
+        LocationAndAction::Nums(Action::Edit(EditAct {
+            new: 10i32,
+            key: 0,
+            prev: None,
+        })),
+    );
+    assert_eq!(app.project.nums.0, vec![10, 2, 3]);
     app.record.undo(&mut app.project);
     assert_eq!(app.project.nums.0, vec![1, 2, 3]);
 }
