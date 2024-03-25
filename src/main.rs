@@ -128,43 +128,82 @@ pub struct Add<T: Editable + Clone> {
     pub key: Option<T::Key>,
 }
 
-// pub struct App {
-//     pub record: Record<Action<Project>>,
-//     pub project: Project,
-// }
+pub enum LocationAndAction {
+    Nums(Action<Numbers>),
+    Strs(Action<Strings>),
+}
 
-// pub struct Project {
-//     pub nums: Numbers,
-//     pub strs: Strings,
-// }
+impl Edit for LocationAndAction {
+    type Target = Project;
+    type Output = ();
+
+    fn edit(&mut self, target: &mut Self::Target) -> Self::Output {
+        match self {
+            LocationAndAction::Nums(action) => {
+                let target_field = &mut target.nums;
+                action.edit(target_field);
+            }
+            LocationAndAction::Strs(action) => {
+                let target_field = &mut target.strs;
+                action.edit(target_field);
+            }
+        }
+    }
+
+    fn undo(&mut self, target: &mut Self::Target) -> Self::Output {
+        match self {
+            LocationAndAction::Nums(action) => {
+                let target_field = &mut target.nums;
+                action.undo(target_field);
+            }
+            LocationAndAction::Strs(action) => {
+                let target_field = &mut target.strs;
+                action.undo(target_field);
+            }
+        }
+    }
+}
+
+pub struct App {
+    pub record: Record<LocationAndAction>,
+    pub project: Project,
+}
+
+#[derive(Clone, Debug)]
+pub struct Project {
+    pub nums: Numbers,
+    pub strs: Strings,
+}
 
 fn main() {
-    let mut numbers = Numbers(vec![1, 2, 3]);
-    //let mut strings = Strings(vec!["a".to_owned(), "b".to_owned(), "c".to_owned()]);
+    let nums = Numbers(vec![1, 2, 3]);
+    let strs = Strings(vec!["a".to_owned(), "b".to_owned(), "c".to_owned()]);
+    let project = Project { nums, strs };
+    let record = Record::new();
+    let mut app = App { record, project };
 
-    let mut record = Record::new();
-    record.edit(
-        &mut numbers,
-        Action::Delete(Delete {
+    app.record.edit(
+        &mut app.project,
+        LocationAndAction::Nums(Action::Delete(Delete {
             key: 0,
             result: None,
-        }),
+        })),
     );
-    dbg!(&numbers);
-    record.undo(&mut numbers);
-    dbg!(&numbers);
+    dbg!(&app.project.nums);
+    app.record.undo(&mut app.project);
+    dbg!(&app.project.nums);
 
-    record.edit(
-        &mut numbers,
-        Action::Add(Add {
+    app.record.edit(
+        &mut app.project,
+        LocationAndAction::Nums(Action::Add(Add {
             el: 0i32,
             key: None,
-        }),
+        })),
     );
-    dbg!(&numbers);
+    dbg!(&app.project.nums);
 
-    record.undo(&mut numbers);
-    dbg!(&numbers);
+    app.record.undo(&mut app.project);
+    dbg!(&app.project.nums);
 }
 
 /*
