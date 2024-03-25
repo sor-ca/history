@@ -189,9 +189,20 @@ fn main() {
             result: None,
         })),
     );
-    dbg!(&app.project.nums);
+    assert_eq!(app.project.nums.0, vec![2, 3]);
+    app.record.edit(
+        &mut app.project,
+        LocationAndAction::Strs(Action::Delete(Delete {
+            key: 0,
+            result: None,
+        })),
+    );
+    assert_eq!(app.project.strs.0, vec!["b".to_owned(), "c".to_owned()]);
     app.record.undo(&mut app.project);
-    dbg!(&app.project.nums);
+    assert_eq!(app.project.strs.0, vec!["a".to_owned(), "b".to_owned(), "c".to_owned()]);
+    assert_eq!(app.project.nums.0, vec![2, 3]);
+    app.record.undo(&mut app.project);
+    assert_eq!(app.project.nums.0, vec![1, 2, 3]);
 
     app.record.edit(
         &mut app.project,
@@ -200,10 +211,10 @@ fn main() {
             key: None,
         })),
     );
-    dbg!(&app.project.nums);
+    assert_eq!(app.project.nums.0, vec![1, 2, 3, 0]);
 
     app.record.undo(&mut app.project);
-    dbg!(&app.project.nums);
+    assert_eq!(app.project.nums.0, vec![1, 2, 3]);
 }
 
 /*
